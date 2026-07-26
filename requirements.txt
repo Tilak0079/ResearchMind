@@ -16,3 +16,8 @@ psycopg[binary]==3.2.3       # PostgreSQL client
 redis==5.2.0                  # Redis client
 qdrant-client==1.12.1         # Qdrant client
 boto3==1.35.68                # S3-compatible client, works with MinIO
+
+
+# --- Database migrations (Phase 3) ---
+alembic==1.14.0
+sqlalchemy==2.0.36            # Alembic needs this under the hood to talk to Postgres

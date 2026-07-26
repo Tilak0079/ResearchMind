@@ -42,6 +42,52 @@ def check_postgres() -> bool:
         return False
 
 
+def check_postgres_schema() -> bool:
+    """Confirms the three core tables exist (not just that Postgres is reachable)."""
+    expected_tables = {"paper_registry", "chunk_registry", "session_history"}
+    try:
+        conn_string = (
+            f"host={settings.postgres_host} "
+            f"port={settings.postgres_port} "
+            f"dbname={settings.postgres_db} "
+            f"user={settings.postgres_user} "
+            f"password={settings.postgres_password}"
+        )
+        with psycopg.connect(conn_string, connect_timeout=5) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';"
+                )
+                found_tables = {row[0] for row in cur.fetchall()}
+
+        missing = expected_tables - found_tables
+        if missing:
+            logger.error("Postgres schema: MISSING tables — %s", missing)
+            return False
+
+        logger.info("Postgres schema: OK (all expected tables present)")
+        return True
+    except psycopg.OperationalError as e:
+        logger.error("Postgres schema check: FAILED — %s", e)
+        return False
+
+
+def check_qdrant_schema() -> bool:
+    """Confirms the 'paper_chunks' collection exists (not just that Qdrant is reachable)."""
+    try:
+        client = QdrantClient(host=settings.qdrant_host, port=settings.qdrant_port, timeout=5)
+        collections = [c.name for c in client.get_collections().collections]
+        if "paper_chunks" not in collections:
+            logger.error("Qdrant schema: MISSING 'paper_chunks' collection")
+            return False
+        logger.info("Qdrant schema: OK ('paper_chunks' collection present)")
+        return True
+    except Exception as e:
+        logger.error("Qdrant schema check: FAILED — %s", e)
+        return False
+
+
+
 def check_redis() -> bool:
     """Tries to ping the Redis server."""
     try:
@@ -90,11 +136,13 @@ def check_minio() -> bool:
 def main() -> None:
     """Runs all four connectivity checks and reports overall pass/fail."""
     logger.info("Phase 2 health check starting...")
-
+    
     results = {
         "postgres": check_postgres(),
+        "postgres_schema": check_postgres_schema(),
         "redis": check_redis(),
         "qdrant": check_qdrant(),
+        "qdrant_schema": check_qdrant_schema(),
         "minio": check_minio(),
     }
 
