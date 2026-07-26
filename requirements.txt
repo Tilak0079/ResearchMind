@@ -1,0 +1,18 @@
+# --- Core app ---
+python-dotenv==1.0.1        # loads variables from .env file into Python
+pydantic==2.9.2              # data validation (used for config + API request bodies)
+pydantic-settings==2.6.1     # lets pydantic read settings from environment variables
+
+# --- Logging ---
+# (using Python's built-in logging module — no extra package needed yet)
+
+# --- Dev tools ---
+ruff==0.7.4                  # linter — catches messy/incorrect code
+black==24.10.0                # auto code formatter
+pytest==8.3.3                 # for writing/running tests later
+
+# --- Infra clients (Phase 2) ---
+psycopg[binary]==3.2.3       # PostgreSQL client
+redis==5.2.0                  # Redis client
+qdrant-client==1.12.1         # Qdrant client
+boto3==1.35.68                # S3-compatible client, works with MinIO

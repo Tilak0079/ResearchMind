@@ -1,0 +1,83 @@
+# docker-compose.yml
+#
+# Defines the four infrastructure services this project depends on:
+#   - qdrant   : vector database (dense + sparse hybrid search)
+#   - postgres : relational metadata store (papers, chunks, sessions)
+#   - redis    : cache / rate-limiting / background job queue
+#   - minio    : S3-compatible object storage (raw PDFs, parsed artifacts)
+#
+# Each service has a healthcheck so we can tell "container is running" apart
+# from "container is actually ready to accept connections" — these are not
+# the same thing, especially for Postgres which takes a few seconds to boot.
+
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.11.5
+    container_name: rag_qdrant
+    ports:
+      - "6333:6333" # REST API
+      - "6334:6334" # gRPC API
+    volumes:
+      - qdrant_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/6333' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres:
+    image: postgres:16
+    container_name: rag_postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: rag_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    container_name: rag_minio
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    ports:
+      - "9000:9000" # S3 API
+      - "9001:9001" # Web console
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+# Named volumes = Docker manages the storage location for us.
+# Data survives container restarts, but you can wipe it with `docker compose down -v`.
+volumes:
+  qdrant_data:
+  postgres_data:
+  redis_data:
+  minio_data:
